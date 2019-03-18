@@ -1,0 +1,144 @@
+---
+title: "Activity Analysis"
+author: "KlaudiuszRz"
+date: "18 marca 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+### Loading data and activating necessery libraries
+
+```{r libs and data, results='hide'}
+suppressMessages(library(tidyverse))
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+
+if (!file.exists("activity.zip")){
+    fileUrl <- "https://github.com/KlaudiuszRz/RepData_PeerAssessment1/raw/master/activity.zip"
+    download.file(fileUrl, "activity.zip", mode = "wb")
+    unzip("activity.zip")
+}
+
+if (!file.exists("activity.csv")){
+    unzip("activity.zip")
+    
+}
+
+data <- read.csv("activity.csv")
+```
+
+## What is mean total number of steps taken per day?
+### Calculate the total number of steps taken per day
+
+```{r total steps per day}
+data_steps_per_day <- data %>% group_by(date) %>% 
+    summarise(sum_of_steps_per_day = sum(steps))
+
+steps_per_day_distribution <-  hist(data_steps_per_day$sum_of_steps_per_day,
+                                    breaks = 10)
+```
+
+```{r mean and median}
+Avg_steps <- mean(data_steps_per_day$sum_of_steps_per_day, na.rm = TRUE)
+Median_steps <- median(data_steps_per_day$sum_of_steps_per_day,
+                                  na.rm = TRUE)
+print(cat("Mean number of steps taken per day:",round(Avg_steps,2),"\nMedian number of steps taken per day:", Median_steps, "\nI can't figure out why NULL appears at the end of this sentence."))
+
+```
+
+## What is the average daily activity pattern?
+
+```{r plot}
+data_grouped_by_interval <- data %>% group_by(interval) %>%
+  summarise(avg_steps = mean(steps, na.rm=TRUE))
+
+plot(data_grouped_by_interval$interval,
+     data_grouped_by_interval$avg_steps ,type = "l",
+     ylab = "Nr of steps per interval",
+     xlab = "Nr of minutes since midnight",
+     col = "blue")
+
+```
+
+## Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
+
+```{r answer}
+Max_interval <- data_grouped_by_interval[data_grouped_by_interval$avg_steps == max(data_grouped_by_interval$avg_steps),1]
+
+print(paste("Max steps, on average, was taken in interval that starts in", Max_interval," minute and is equal to", round(max(data_grouped_by_interval$avg_steps),0)))
+
+```
+
+## Imputing missing values
+
+```{r}
+print(paste("There is", sum(is.na(data$steps)), "missing values"))
+```
+Strategy:
+In previous question solution, the average amount of steps per each interval was estimated. We are going to usu this value in this manner, if there is no value we check when it happened (nr of interval) and fill this value by average nr of steps taken in coresponding interval.
+```{r imputing missing values}
+data2 <- data
+for (i in c(1:(dim(data)[1]))){
+    if (is.na(data[i,1])){
+        interval <- data[i,3]
+        data2[i,1] <- data_grouped_by_interval[data_grouped_by_interval$interval==interval,2]
+    }
+}
+
+
+```
+## Calculate and report the mean and median total number of steps taken per day.
+```{r}
+data_steps_per_day2 <- data2 %>% group_by(date) %>% 
+  summarise(sum_of_steps_per_day = sum(steps))
+
+Avg_nr_steps_per_day2 <- mean(data_steps_per_day2$sum_of_steps_per_day, na.rm = TRUE)
+Median_nr_steps_per_day2 <- median(data_steps_per_day2$sum_of_steps_per_day, na.rm = TRUE)
+print(paste("Average:",Avg_nr_steps_per_day2, "Median:",Median_nr_steps_per_day2))
+```
+## Make a histogram of the total number of steps taken each day
+
+```{r}
+hist(data_steps_per_day2$sum_of_steps_per_day, breaks = 10, main = "Distribution of total steps made per day", xlab="Amount of steps made per day")
+```
+
+##Do these values differ from the estimates from the first part of the assignment? What is the impact of imputing missing data on the estimates of the total daily number of steps?
+
+Filling NAN's pushed more days to the range 10000-12500 steps per day. Distribution became more centralized.
+
+##Create a new factor variable in the dataset with two levels – “weekday” and “weekend” indicating whether a given date is a weekday or weekend day.
+
+```{r}
+factor_days <- c()
+for (i in c(1:(dim(data)[1]))){
+
+  if(as.POSIXlt(data[i,2])$wday %in% c(1:5)){
+      factor_days<-append(factor_days, c("Weekday"))
+  
+  
+}   else {
+      factor_days <- append(factor_days, c("Weekend"))
+}
+}
+
+data2$factor_days <- as.factor(factor_days)
+```
+
+
+## Create a new factor variable in the dataset with two levels – “weekday” and “weekend” indicating whether a given date is a weekday or weekend day.
+```{r}
+data2 <- data2 %>%
+  group_by(factor_days, interval) %>%
+  summarise(sum_steps=mean(steps))
+
+
+ggplot(data=data2, aes(interval, sum_steps))+
+  geom_line()+
+  facet_grid(rows=vars(factor_days))
+```
